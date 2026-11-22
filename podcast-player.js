@@ -112,14 +112,16 @@ class PodcastPlayer extends HTMLElement {
   }
 
   #labelGroup () {
+    if (this.hasAttribute('aria-label') || this.hasAttribute('aria-labelledby')) return
+
     const title = this.querySelector('[data-player-title]')
     if (title?.id) {
       this.setAttribute('aria-labelledby', title.id)
     } else if (title) {
       title.id = `podcast-player-title-${++PodcastPlayer.#generatedIdCount}`
       this.setAttribute('aria-labelledby', title.id)
-    } else if (!this.hasAttribute('aria-label')) {
-      this.setAttribute('aria-label', 'Audio player') // a group needs a name; the author's own wins
+    } else {
+      this.setAttribute('aria-label', 'Audio player') // a group needs a name
     }
   }
 
