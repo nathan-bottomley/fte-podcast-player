@@ -233,8 +233,8 @@ class PodcastPlayer extends HTMLElement {
     const playbackRates = parsePlaybackRates(this.getAttribute('playback-rates'))
 
     const showSpeed = () => {
-      speed.textContent = `${audio.playbackRate}x`
-      speed.setAttribute('aria-label', `Playback speed: ${audio.playbackRate}x`)
+      speed.textContent = `${audio.playbackRate}×`
+      speed.setAttribute('aria-label', `Playback speed: ${audio.playbackRate}×`)
     }
 
     showSpeed()
@@ -243,7 +243,7 @@ class PodcastPlayer extends HTMLElement {
     speed.addEventListener('click', () => {
       audio.playbackRate = playbackRates.find(rate => rate > audio.playbackRate) ?? playbackRates[0]
       // A changed label on a focused button isn't reliably announced.
-      status.textContent = `Speed ${audio.playbackRate}x`
+      status.textContent = `Speed ${audio.playbackRate}×`
     })
   }
 

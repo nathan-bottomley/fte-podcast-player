@@ -2,6 +2,12 @@
 
 Until version 1.0, any minor release may contain breaking changes.
 
+## 0.2.1 (2026-11-22)
+
+### Changed
+
+- The playback speed is now written with a multiplication sign (`1.2×`) instead of the letter x, in the speed button, its `aria-label` and the status announcement.
+
 ## 0.2.0 (2026-11-22)
 
 ### Breaking

@@ -59,7 +59,7 @@ The player is designed to be accessible. It uses native `<button>` and `<input t
 - Buttons announce their state (Play/Pause, mute on/off) and have a default minimum 44px target size.
 - The seek slider uses `aria-valuetext` to describe the current position in the audio and the audio's total duration (`"1:23 of 45:00"`).
 - The volume slider uses `aria-valuetext` to describe the current volume level (`"75%"`).
-- Changing the speed writes `"Speed 1.2x"` to a visually hidden `[data-player-status]` element, which is a live region so that screen readers will announce the change.
+- Changing the speed writes `"Speed 1.2×"` to a visually hidden `[data-player-status]` element, which is a live region so that screen readers will announce the change.
 - The skip buttons have labels that include the number of seconds (`"Skip forward 30 seconds"`).
 - When a forced colours mode is active (such as a Windows contrast theme), the browser applies system colours, and the player redraws the seek and volume sliders so their tracks and thumbs remain visible.
 
