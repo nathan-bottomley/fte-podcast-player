@@ -1,0 +1,12 @@
+{
+  "name": "fte-podcast-player",
+  "version": "0.1.0",
+  "description": "A themable, accessible audio player custom element for podcast sites",
+  "type": "module",
+  "main": "podcast-player.js",
+  "exports": "./podcast-player.js",
+  "files": [
+    "podcast-player.js"
+  ],
+  "license": "ISC"
+}
