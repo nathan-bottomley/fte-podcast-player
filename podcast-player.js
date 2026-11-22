@@ -83,7 +83,7 @@ class PodcastPlayer extends HTMLElement {
 
   #built = false
   #audio
-  #parts = {} // the controls, keyed by their data-part name
+  #parts = {} // the controls, keyed by name
   #scrubbing = false // the user is dragging the seek bar
   #skipBack = 10 // "what did they just say?"
   #skipForward = 30 // "skip this ad"
@@ -125,20 +125,21 @@ class PodcastPlayer extends HTMLElement {
 
   #renderControls () {
     const controls = document.createElement('div')
-    controls.dataset.part = 'controls'
+    controls.dataset.playerControls = ''
     controls.innerHTML = `
-      <button type="button" data-part="back" aria-label="Skip back ${this.#skipBack} seconds">${renderSkipIcon('back', this.#skipBack)}</button>
-      <button type="button" data-part="play" aria-label="Play">${renderIcon('play')}</button>
-      <button type="button" data-part="forward" aria-label="Skip forward ${this.#skipForward} seconds">${renderSkipIcon('forward', this.#skipForward)}</button>
-      <span data-part="time"><span data-part="current">0:00</span><span data-part="duration"></span></span>
-      <input type="range" data-part="seek" aria-label="Seek" min="0" step="1" value="0">
-      <button type="button" data-part="mute" aria-label="Mute" aria-pressed="false">${renderIcon('volume')}</button>
-      ${volumeIsSettable() ? '<input type="range" data-part="volume" aria-label="Volume" min="0" max="1" step="0.05" value="1">' : ''}
-      <button type="button" data-part="speed"></button>
-      <span data-part="status" role="status"></span>`
+      <button type="button" data-player-back aria-label="Skip back ${this.#skipBack} seconds">${renderSkipIcon('back', this.#skipBack)}</button>
+      <button type="button" data-player-play aria-label="Play">${renderIcon('play')}</button>
+      <button type="button" data-player-forward aria-label="Skip forward ${this.#skipForward} seconds">${renderSkipIcon('forward', this.#skipForward)}</button>
+      <span data-player-time><span data-player-current>0:00</span><span data-player-duration></span></span>
+      <input type="range" data-player-seek aria-label="Seek" min="0" step="1" value="0">
+      <button type="button" data-player-mute aria-label="Mute" aria-pressed="false">${renderIcon('volume')}</button>
+      ${volumeIsSettable() ? '<input type="range" data-player-volume aria-label="Volume" min="0" max="1" step="0.05" value="1">' : ''}
+      <button type="button" data-player-speed></button>
+      <span data-player-status role="status"></span>`
     this.append(controls)
 
-    for (const part of controls.querySelectorAll('[data-part]')) this.#parts[part.dataset.part] = part
+    const partNames = ['back', 'play', 'forward', 'time', 'current', 'duration', 'seek', 'mute', 'volume', 'speed', 'status']
+    for (const name of partNames) this.#parts[name] = controls.querySelector(`[data-player-${name}]`)
   }
 
   #setUpPlayback () {
@@ -377,7 +378,7 @@ const componentStyles = /* css */ `
     font-size: var(--_title-font-size);
   }
 
-  podcast-player [data-part="controls"] {
+  podcast-player [data-player-controls] {
     display: flex;
     align-items: center;
     padding-block: 0.125rem;
@@ -413,18 +414,18 @@ const componentStyles = /* css */ `
   }
 
   /* The skip arcs are wide and shallow, and carry a number, so they get more room */
-  podcast-player :is([data-part="back"], [data-part="forward"]) svg {
+  podcast-player :is([data-player-back], [data-player-forward]) svg {
     inline-size: calc(var(--_icon) * 1.5);
     block-size: calc(var(--_icon) * 1.5);
   }
 
-  podcast-player [data-part="time"],
-  podcast-player [data-part="speed"] {
+  podcast-player [data-player-time],
+  podcast-player [data-player-speed] {
     font-size: var(--_controls-font-size);
     font-variant-numeric: tabular-nums;
   }
 
-  podcast-player [data-part="time"] {
+  podcast-player [data-player-time] {
     padding-inline: var(--_padding-inline);
     white-space: nowrap;
   }
@@ -439,11 +440,11 @@ const componentStyles = /* css */ `
     cursor: pointer;
   }
 
-  podcast-player [data-part="seek"] {
+  podcast-player [data-player-seek] {
     flex: 1 1 6rem;
   }
 
-  podcast-player [data-part="volume"] {
+  podcast-player [data-player-volume] {
     flex: 0 1 4rem;
   }
 
@@ -503,7 +504,7 @@ const componentStyles = /* css */ `
   }
 
   /* Screen-reader announcements only */
-  podcast-player [data-part="status"] {
+  podcast-player [data-player-status] {
     position: absolute;
     inline-size: 1px;
     block-size: 1px;
@@ -513,38 +514,38 @@ const componentStyles = /* css */ `
   }
 
   /* Waiting for data */
-  podcast-player[buffering] [data-part="seek"] {
+  podcast-player[buffering] [data-player-seek] {
     opacity: 0.7;
   }
 
   /* Narrow: the seek bar drops to its own row, and the volume slider goes */
   @media (width < 500px) {
-    podcast-player [data-part="controls"] {
+    podcast-player [data-player-controls] {
       flex-wrap: wrap;
     }
 
-    podcast-player [data-part="time"] {
+    podcast-player [data-player-time] {
       margin-inline-end: auto;
     }
 
-    podcast-player [data-part="seek"] {
+    podcast-player [data-player-seek] {
       order: 1;
       flex-basis: 100%;
     }
 
     /* On its own row the slider needn't be a full touch-size tall; that only leaves a chin.
        The attribute selectors outrank the generic range-input rule. */
-    podcast-player input[type="range"][data-part="seek"] {
+    podcast-player input[type="range"][data-player-seek] {
       block-size: calc(var(--_touch) * 0.65);
     }
 
-    podcast-player [data-part="volume"] {
+    podcast-player [data-player-volume] {
       display: none;
     }
   }
 
   @media (width < 380px) {
-    podcast-player [data-part="duration"] {
+    podcast-player [data-player-duration] {
       display: none;
     }
   }
