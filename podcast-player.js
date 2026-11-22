@@ -79,7 +79,7 @@ function volumeIsSettable () {
 
 class PodcastPlayer extends HTMLElement {
   static #generatedIdCount = 0
-  static #currentPlayer = null // the player that last claimed the media session
+  static #currentPlayer // the player that last claimed the media session
 
   #built = false
   #audio
