@@ -84,7 +84,7 @@ class PodcastPlayer extends HTMLElement {
   #built = false
   #audio
   #parts = {} // the controls, keyed by name
-  #scrubbing = false // the user is dragging the seek bar
+  #scrubbing = false // the user is dragging the seek slider
   #skipBack = 10 // "what did they just say?"
   #skipForward = 30 // "skip this ad"
 
@@ -432,7 +432,7 @@ const componentStyles = /* css */ `
     white-space: nowrap;
   }
 
-  /* Range inputs: seek bar and volume */
+  /* Range inputs: the seek and volume sliders */
   podcast-player input[type="range"] {
     appearance: none;
     min-inline-size: 0;
@@ -520,7 +520,7 @@ const componentStyles = /* css */ `
     opacity: 0.7;
   }
 
-  /* Narrow: the seek bar drops to its own row, and the volume slider goes */
+  /* Narrow: the seek slider drops to its own row, and the volume slider goes */
   @media (width < 500px) {
     podcast-player [data-player-controls] {
       flex-wrap: wrap;
