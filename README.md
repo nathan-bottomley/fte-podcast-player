@@ -30,7 +30,7 @@ Where the browser doesn't allow scripts to set the volume (iOS), there's no volu
 ## Attributes
 
 | Attribute | Meaning |
-|---|---|
+| --- | --- |
 | `duration` | Known duration in seconds, shown until the audio reports its own. |
 | `playback-rates` | Space-separated playback rates the speed button cycles through. |
 | `skip-back` | Seconds the back button skips (default 10). |
@@ -72,7 +72,7 @@ The stylesheet is added once, as the last element in `<head>`. Its layer is ther
 Theme with these custom properties, set on `podcast-player` or any ancestor:
 
 | Property | Controls |
-|---|---|
+| --- | --- |
 | `--player-accent-color` | focus ring, seek thumb, and the filled seek bar unless `--player-track-fill-color` is set |
 | `--player-background-color` | background |
 | `--player-text-color` | text and icons |
