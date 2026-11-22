@@ -8,5 +8,12 @@
   "files": [
     "podcast-player.js"
   ],
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "eslint": "^10.15.0",
+    "neostandard": "^0.14.1"
+  },
+  "scripts": {
+    "lint": "eslint ."
+  }
 }
