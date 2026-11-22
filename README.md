@@ -9,7 +9,7 @@ A themable, accessible audio player for podcast sites. One file, no dependencies
 First, `npm install` the package.
 
 ```sh
-npm install github:nathan-bottomley/fte-podcast-player#v0.2.0
+npm install github:nathan-bottomley/fte-podcast-player#semver:^0.2.0
 ```
 
 Then serve `node_modules/fte-podcast-player/podcast-player.js` to the browser and load it with `type="module"`.
