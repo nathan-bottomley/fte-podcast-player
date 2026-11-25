@@ -360,6 +360,7 @@ const componentStyles = /* css */ `
 
     display: block;
     inline-size: 100%;
+    container-type: inline-size;
     color: var(--_text);
     background: var(--_background);
     border: 1px solid var(--_border);
@@ -521,7 +522,7 @@ const componentStyles = /* css */ `
   }
 
   /* Narrow: the seek slider drops to its own row, and the volume slider goes */
-  @media (width < 500px) {
+  @container (width < 540px) {
     podcast-player [data-player-controls] {
       flex-wrap: wrap;
     }
@@ -539,6 +540,7 @@ const componentStyles = /* css */ `
        The attribute selectors outrank the generic range-input rule. */
     podcast-player input[type="range"][data-player-seek] {
       block-size: calc(var(--_touch) * 0.65);
+      margin-inline: max(var(--_padding-inline), calc((var(--_touch) - var(--_icon)) / 2));
     }
 
     podcast-player [data-player-volume] {
@@ -546,7 +548,7 @@ const componentStyles = /* css */ `
     }
   }
 
-  @media (width < 380px) {
+  @container (width < 380px) {
     podcast-player [data-player-duration] {
       display: none;
     }

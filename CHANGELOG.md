@@ -2,6 +2,14 @@
 
 Until version 1.0, any minor release may contain breaking changes.
 
+## 0.2.2 (2026-11-26)
+
+### Changed
+
+- The narrow layout, where the seek slider drops to its own row and the volume slider is hidden, now depends on the width of the player, not the width of the window. It starts when the player is narrower than 540px (it was 500px of window width), so the seek slider is never squeezed to almost nothing. The player is now a query container (`container-type: inline-size`).
+- In the narrow layout, the seek slider's side margins now line up its ends with the icons in the row above.
+- The duration is hidden when the player is narrower than 380px, again measured on the player and not the window.
+
 ## 0.2.1 (2026-11-22)
 
 ### Changed
