@@ -71,7 +71,6 @@ function parsePlaybackRates (value) {
 
 const speedStorageKey = 'podcast-player-speed'
 
-// Storage can throw (private mode, blocked cookies), and remembering the speed is only a nicety
 const readSavedSpeed = () => {
   try {
     return localStorage.getItem(speedStorageKey)
@@ -86,7 +85,6 @@ const saveSpeed = rate => {
   } catch {}
 }
 
-/* iOS ignores attempts to set the volume, and a volume slider would do nothing there */
 const volumeProbe = new Audio()
 volumeProbe.volume = 0.5
 const volumeIsSettable = volumeProbe.volume === 0.5
@@ -104,6 +102,8 @@ class PodcastPlayer extends HTMLElement {
   #skipBack = 10 // "what did they just say?"
   #skipForward = 30 // "skip this ad"
   #authorLabel // the aria-label the author supplied, if any
+  #playbackRates // cycled through by the speed button
+  #remembersSpeed = false
 
   /* Setting up */
 
@@ -122,6 +122,8 @@ class PodcastPlayer extends HTMLElement {
     this.#audio.controls = false
     this.#skipBack = parseSeconds(this.getAttribute('skip-back'), this.#skipBack)
     this.#skipForward = parseSeconds(this.getAttribute('skip-forward'), this.#skipForward)
+    this.#playbackRates = parsePlaybackRates(this.getAttribute('playback-rates'))
+    this.#remembersSpeed = this.hasAttribute('remember-speed')
 
     this.#authorLabel = this.getAttribute('aria-label')
     this.setAttribute('role', 'group')
@@ -174,58 +176,41 @@ class PodcastPlayer extends HTMLElement {
   }
 
   #setUpPlayback () {
-    const audio = this.#audio
-    const { play } = this.#parts
-
-    const showPlayState = () => {
-      play.setAttribute('aria-label', audio.paused ? 'Play' : 'Pause')
-      play.innerHTML = renderIcon(audio.paused ? 'play' : 'pause')
-      this.toggleAttribute('playing', !audio.paused)
+    this.#showPlayState()
+    for (const type of ['play', 'pause', 'ended']) {
+      this.#audio.addEventListener(type, () => this.#showPlayState())
     }
 
-    showPlayState()
-    for (const type of ['play', 'pause', 'ended']) audio.addEventListener(type, showPlayState)
+    this.#parts.play.addEventListener('click', () => this.#togglePlay())
 
-    play.addEventListener('click', () => (audio.paused ? this.#play() : audio.pause()))
-
-    audio.addEventListener('waiting', () => this.toggleAttribute('buffering', true))
+    this.#audio.addEventListener('waiting', () => this.toggleAttribute('buffering', true))
     for (const type of ['playing', 'canplay', 'pause', 'emptied']) {
-      audio.addEventListener(type, () => this.toggleAttribute('buffering', false))
+      this.#audio.addEventListener(type, () => this.toggleAttribute('buffering', false))
     }
   }
 
   #setUpErrorMessage () {
     const audio = this.#audio
-    const { error } = this.#parts
-
-    const showError = () => { error.textContent = 'Audio failed to load' }
 
     // The audio may have failed before the player was built
-    if (audio.error || audio.networkState === audio.NETWORK_NO_SOURCE) showError()
+    if (audio.error || audio.networkState === audio.NETWORK_NO_SOURCE) this.#showError()
 
     // A failed <source> fires its error event on itself, and error events don't bubble,
     // so listen during the capture phase. Only the last <source> failing means that none are left to try.
     audio.addEventListener('error', event => {
       const sources = audio.querySelectorAll('source')
-      if (event.target === audio || event.target === sources[sources.length - 1]) showError()
+      if (event.target === audio || event.target === sources[sources.length - 1]) this.#showError()
     }, true)
 
-    audio.addEventListener('loadedmetadata', () => { error.textContent = '' })
+    audio.addEventListener('loadedmetadata', () => this.#clearError())
   }
 
   #setUpPosition () {
-    const audio = this.#audio
     const { seek, back, forward } = this.#parts
 
-    // While the user drags, or a seek is still in flight, audio.currentTime
-    // is stale or in flux. Ignore it so the bar doesn't jump back.
-    const showAudioPosition = () => {
-      if (!this.#scrubbing && !audio.seeking) this.#showPosition(audio.currentTime)
-    }
-
-    showAudioPosition()
+    this.#showPositionUnlessSeeking()
     for (const type of ['timeupdate', 'seeked', 'durationchange', 'loadedmetadata']) {
-      audio.addEventListener(type, showAudioPosition)
+      this.#audio.addEventListener(type, () => this.#showPositionUnlessSeeking())
     }
 
     seek.addEventListener('input', () => {
@@ -237,122 +222,190 @@ class PodcastPlayer extends HTMLElement {
       this.seekTo(seek.valueAsNumber)
     })
 
-    back.addEventListener('click', () => this.seekTo(audio.currentTime - this.#skipBack))
-    forward.addEventListener('click', () => this.seekTo(audio.currentTime + this.#skipForward))
+    back.addEventListener('click', () => this.seekTo(this.#audio.currentTime - this.#skipBack))
+    forward.addEventListener('click', () => this.seekTo(this.#audio.currentTime + this.#skipForward))
   }
 
   #setUpVolume () {
-    const audio = this.#audio
     const { mute, volume } = this.#parts
 
-    const showVolume = () => {
-      const silent = audio.muted || audio.volume === 0
-      mute.innerHTML = renderIcon(silent ? 'muted' : 'volume')
-      mute.setAttribute('aria-pressed', String(silent))
-      if (volume) {
-        const level = audio.muted ? 0 : audio.volume
-        volume.value = level
-        volume.setAttribute('aria-valuetext', `${Math.round(level * 100)}%`) // the raw value is 0 to 1
-        volume.style.setProperty('--_filled', `${level * 100}%`)
-      }
-    }
+    this.#showVolume()
+    this.#audio.addEventListener('volumechange', () => this.#showVolume())
 
-    showVolume()
-    audio.addEventListener('volumechange', showVolume)
-
-    mute.addEventListener('click', () => {
-      if (audio.volume === 0) {
-        // Silent because the slider is at zero, not because of mute: turn it back up.
-        audio.volume = 1
-        audio.muted = false
-      } else {
-        audio.muted = !audio.muted
-      }
-    })
-    volume?.addEventListener('input', () => {
-      audio.muted = false
-      audio.volume = volume.valueAsNumber
-    })
+    mute.addEventListener('click', () => this.#toggleMute())
+    volume?.addEventListener('input', () => this.#changeVolume())
   }
 
   #setUpSpeed () {
-    const audio = this.#audio
-    const { speed, status } = this.#parts
-    const playbackRates = parsePlaybackRates(this.getAttribute('playback-rates'))
-    const remember = this.hasAttribute('remember-speed')
-
-    if (remember) {
+    if (this.#remembersSpeed) {
       const savedRate = Number(readSavedSpeed())
-      if (playbackRates.includes(savedRate)) audio.playbackRate = savedRate
+      if (this.#playbackRates.includes(savedRate)) this.#audio.playbackRate = savedRate
     }
 
-    const showSpeed = () => {
-      speed.textContent = `${audio.playbackRate}×`
-      speed.setAttribute('aria-label', `Playback speed: ${audio.playbackRate}×`)
-    }
+    this.#showSpeed()
+    this.#audio.addEventListener('ratechange', () => this.#showSpeed())
 
-    showSpeed()
-    audio.addEventListener('ratechange', showSpeed)
-
-    speed.addEventListener('click', () => {
-      audio.playbackRate = playbackRates.find(rate => rate > audio.playbackRate) ?? playbackRates[0]
-      if (remember) saveSpeed(audio.playbackRate)
-      // A changed label on a focused button isn't reliably announced.
-      status.textContent = `Speed ${audio.playbackRate}×`
-    })
+    this.#parts.speed.addEventListener('click', () => this.#cycleSpeed())
   }
 
   #setUpMediaSession () {
     if (!('mediaSession' in navigator)) return
 
     const audio = this.#audio
-    const session = navigator.mediaSession
 
-    const updatePosition = () => {
-      if (PodcastPlayer.#currentPlayer !== this) return
-
-      const duration = this.#duration
-      if (!duration) return
-
-      try {
-        session.setPositionState({
-          duration,
-          playbackRate: audio.playbackRate,
-          position: Math.min(audio.currentTime, duration)
-        })
-      } catch {} // some browsers reject out-of-range values
-    }
-
-    audio.addEventListener('play', () => {
-      PodcastPlayer.#currentPlayer = this
-      const artwork = this.getAttribute('artwork')
-      session.metadata = new MediaMetadata({
-        title: this.querySelector('[data-player-title]')?.textContent.trim() || this.#authorLabel || '',
-        artist: this.getAttribute('artist') ?? '',
-        artwork: artwork ? [{ src: artwork }] : []
-      })
-
-      const handlers = {
-        play: () => this.#play(),
-        pause: () => audio.pause(),
-        seekbackward: details => this.seekTo(audio.currentTime - (details.seekOffset || this.#skipBack)),
-        seekforward: details => this.seekTo(audio.currentTime + (details.seekOffset || this.#skipForward)),
-        seekto: details => this.seekTo(details.seekTime)
-      }
-      for (const [action, handler] of Object.entries(handlers)) {
-        try { session.setActionHandler(action, handler) } catch {} // unsupported action
-      }
-      updatePosition()
-    })
+    audio.addEventListener('play', () => this.#claimMediaSession())
 
     for (const type of ['durationchange', 'ratechange', 'seeked']) {
-      audio.addEventListener(type, updatePosition)
+      audio.addEventListener(type, () => this.#updateMediaSessionPosition())
     }
     // timeupdate keeps the lock-screen scrubber honest, but only matters while playing.
-    audio.addEventListener('timeupdate', () => { if (!audio.paused) updatePosition() })
+    audio.addEventListener('timeupdate', () => { if (!audio.paused) this.#updateMediaSessionPosition() })
   }
 
-  /* public API */
+  /* Displaying */
+
+  #showPlayState () {
+    const { play } = this.#parts
+    const paused = this.#audio.paused
+
+    play.setAttribute('aria-label', paused ? 'Play' : 'Pause')
+    play.innerHTML = renderIcon(paused ? 'play' : 'pause')
+    this.toggleAttribute('playing', !paused)
+  }
+
+  #showError () {
+    this.#parts.error.textContent = 'Audio failed to load'
+  }
+
+  #clearError () {
+    this.#parts.error.textContent = ''
+  }
+
+  #showPositionUnlessSeeking () {
+    if (!this.#scrubbing && !this.#audio.seeking) this.#showPosition(this.#audio.currentTime)
+  }
+
+  #showPosition (time) {
+    const { seek, current, duration } = this.#parts
+    const totalDuration = this.#duration
+
+    seek.max = totalDuration
+    seek.value = time
+    seek.style.setProperty('--_filled', totalDuration ? `${(time / totalDuration) * 100}%` : '0%')
+    seek.setAttribute('aria-valuetext', `${formatDuration(time)} of ${formatDuration(totalDuration)}`)
+    current.textContent = formatDuration(time)
+    duration.textContent = ` / ${formatDuration(totalDuration)}`
+  }
+
+  #showVolume () {
+    const { mute, volume } = this.#parts
+    const audio = this.#audio
+    const silent = audio.muted || audio.volume === 0
+
+    mute.innerHTML = renderIcon(silent ? 'muted' : 'volume')
+    mute.setAttribute('aria-pressed', String(silent))
+    if (volume) {
+      const level = audio.muted ? 0 : audio.volume
+      volume.value = level
+      volume.setAttribute('aria-valuetext', `${Math.round(level * 100)}%`) // the raw value is 0 to 1
+      volume.style.setProperty('--_filled', `${level * 100}%`)
+    }
+  }
+
+  #showSpeed () {
+    const { speed } = this.#parts
+    const rate = this.#audio.playbackRate
+
+    speed.textContent = `${rate}×`
+    speed.setAttribute('aria-label', `Playback speed: ${rate}×`)
+  }
+
+  /* Actions */
+
+  #play () {
+    return this.#audio.play().catch(error => {
+      if (error.name !== 'AbortError') throw error // paused again before playback began
+    })
+  }
+
+  #togglePlay () {
+    return this.#audio.paused ? this.#play() : this.#audio.pause()
+  }
+
+  #toggleMute () {
+    const audio = this.#audio
+
+    if (audio.volume === 0) {
+      // Silent because the slider is at zero, not because of mute: turn it back up.
+      audio.volume = 1
+      audio.muted = false
+    } else {
+      audio.muted = !audio.muted
+    }
+  }
+
+  #changeVolume () {
+    this.#audio.muted = false
+    this.#audio.volume = this.#parts.volume.valueAsNumber
+  }
+
+  #cycleSpeed () {
+    const audio = this.#audio
+
+    audio.playbackRate = this.#playbackRates.find(rate => rate > audio.playbackRate) ?? this.#playbackRates[0]
+    if (this.#remembersSpeed) saveSpeed(audio.playbackRate)
+    // A changed label on a focused button isn't reliably announced.
+    this.#parts.status.textContent = `Speed ${audio.playbackRate}×`
+  }
+
+  #claimMediaSession () {
+    const mediaSession = navigator.mediaSession
+    const audio = this.#audio
+    const artwork = this.getAttribute('artwork')
+
+    PodcastPlayer.#currentPlayer = this
+    mediaSession.metadata = new MediaMetadata({
+      title: this.querySelector('[data-player-title]')?.textContent.trim() || this.#authorLabel || '',
+      artist: this.getAttribute('artist') ?? '',
+      artwork: artwork ? [{ src: artwork }] : []
+    })
+
+    const handlers = {
+      play: () => this.#play(),
+      pause: () => audio.pause(),
+      seekbackward: details => this.seekTo(audio.currentTime - (details.seekOffset || this.#skipBack)),
+      seekforward: details => this.seekTo(audio.currentTime + (details.seekOffset || this.#skipForward)),
+      seekto: details => this.seekTo(details.seekTime)
+    }
+    for (const [action, handler] of Object.entries(handlers)) {
+      try { mediaSession.setActionHandler(action, handler) } catch {} // unsupported action
+    }
+    this.#updateMediaSessionPosition()
+  }
+
+  #updateMediaSessionPosition () {
+    if (PodcastPlayer.#currentPlayer !== this) return
+
+    const duration = this.#duration
+    if (!duration) return
+
+    try {
+      navigator.mediaSession.setPositionState({
+        duration,
+        playbackRate: this.#audio.playbackRate,
+        position: Math.min(this.#audio.currentTime, duration)
+      })
+    } catch {} // some browsers reject out-of-range values
+  }
+
+  /* Helpers */
+
+  get #duration () {
+    const fromAudio = this.#audio.duration
+    return Number.isFinite(fromAudio) ? fromAudio : parseFloat(this.getAttribute('duration')) || 0
+  }
+
+  /* Public API */
 
   get audio () {
     return this.#audio
@@ -364,30 +417,6 @@ class PodcastPlayer extends HTMLElement {
     this.#audio.currentTime = target
     // The browser doesn't fire timeupdate events until data has loaded, so update the display ourselves
     this.#showPosition(target)
-  }
-
-  /* Private helpers */
-
-  #play () {
-    return this.#audio.play().catch(error => {
-      if (error.name !== 'AbortError') throw error // paused again before playback began
-    })
-  }
-
-  get #duration () {
-    const fromAudio = this.#audio.duration
-    return Number.isFinite(fromAudio) ? fromAudio : parseFloat(this.getAttribute('duration')) || 0
-  }
-
-  #showPosition (time) {
-    const { seek, current, duration } = this.#parts
-    const totalDuration = this.#duration
-    seek.max = totalDuration
-    seek.value = time
-    seek.style.setProperty('--_filled', totalDuration ? `${(time / totalDuration) * 100}%` : '0%')
-    seek.setAttribute('aria-valuetext', `${formatDuration(time)} of ${formatDuration(totalDuration)}`)
-    current.textContent = formatDuration(time)
-    duration.textContent = ` / ${formatDuration(totalDuration)}`
   }
 }
 
