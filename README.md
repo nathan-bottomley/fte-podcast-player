@@ -41,8 +41,11 @@ The `<podcast-player>` element supports the following attributes:
 | `playback-rates` | A space-separated list of playback rates cycled through by pressing the speed button (default `0.7 1 1.2 1.5 1.7 2`) |
 | `skip-back` | Seconds skipped by the back button (default 10) |
 | `skip-forward` | Seconds skipped by the forward button (default 30) |
+| `remember-speed` | Boolean. Saves the playback speed in the browser's `localStorage` when the listener changes it, and applies it to every player on the site that has this attribute. Nothing is stored without it |
+| `artist` | Name shown under the title by the media session, usually the name of the podcast |
+| `artwork` | URL of the image shown by the media session. A relative URL is resolved against the page's address |
 
-All these attributes are optional. Attributes are read once, when the player connects, so changing them later has no effect. The exception is `duration`, which is read whenever it's needed, and is used only until the audio reports its own duration.
+All these attributes are optional. Attributes are read once, when the player connects, so changing them later has no effect. The exceptions are `duration`, which is read whenever it's needed and is used only until the audio reports its own duration, and `artist` and `artwork`, which are read each time the player starts playing.
 
 ## API
 
@@ -60,12 +63,15 @@ The player is designed to be accessible. It uses native `<button>` and `<input t
 - The seek slider uses `aria-valuetext` to describe the current position in the audio and the audio's total duration (`"1:23 of 45:00"`).
 - The volume slider uses `aria-valuetext` to describe the current volume level (`"75%"`).
 - Changing the speed writes `"Speed 1.2×"` to a visually hidden `[data-player-status]` element, which is a live region so that screen readers will announce the change.
+- If the audio fails to load, the player shows "Audio failed to load" in a `[data-player-error]` element with `role="alert"`, so that screen readers announce it.
 - The skip buttons have labels that include the number of seconds (`"Skip forward 30 seconds"`).
 - When a forced colours mode is active (such as a Windows contrast theme), the browser applies system colours, and the player redraws the seek and volume sliders so their tracks and thumbs remain visible.
 
 ## Media Session
 
-The player uses [the page's media session][] to drive the lock-screen and notification controls. While audio plays, the lock-screen and notification controls show the title of the most recently started player, and play, pause, seek back, seek forward and seek-to all work.
+The player uses [the page's media session][] to drive the lock-screen and notification controls. While audio plays, the lock-screen and notification controls show the title, artist and artwork of the most recently started player, and play, pause, seek back, seek forward and seek-to all work.
+
+The title is the content of the `[data-player-title]` element or, if there isn't one, the `aria-label` that you set on the player.
 
 [the page's media session]: https://developer.mozilla.org/en-US/docs/Web/API/Media_Session_API
 
@@ -89,6 +95,7 @@ Each part of the player has its own `data-player-…` attribute to select it:
 | `[data-player-volume]` | The volume slider (missing where the browser doesn't allow volume to be set) |
 | `[data-player-speed]` | The playback speed button |
 | `[data-player-status]` | The visually hidden live region that announces speed changes |
+| `[data-player-error]` | The message "Audio failed to load", which is empty (and not displayed) unless the audio has failed |
 
 `data-player-title` is the one attribute that you add yourself, to your own title element.
 
@@ -97,6 +104,17 @@ The player also sets two attributes on `<podcast-player>`: `playing` while audio
 The player injects a small stylesheet in its own cascade layer, so a site's unlayered CSS overrides it.
 
 The stylesheet is added once, as the last element in `<head>`. Its layer is therefore declared after the site's own layers, so it beats a site's resets (for `button` and `svg`, say) but still loses to any of the site's unlayered CSS.
+
+Until the script has run, the browser shows its own audio player, and the page below it can shift when the custom player replaces it. If you see that, reserve the space with a rule in your own CSS:
+
+```css
+podcast-player:not(:defined) {
+  display: block;
+  min-block-size: 3.5rem; /* the height of your built player */
+}
+```
+
+Don't hide the audio element this way. If the script fails to load, it is the player people are left with.
 
 These custom properties can be set on `podcast-player` or any ancestor:
 
@@ -107,6 +125,7 @@ These custom properties can be set on `podcast-player` or any ancestor:
 | `--player-text-color` | text and icons |
 | `--player-track-color` | seek slider groove, the unfilled part |
 | `--player-track-fill-color` | filled part of the seek and volume sliders (defaults to the accent) |
+| `--player-track-border-color` | a 1px outline around the seek and volume slider tracks (default transparent) |
 | `--player-border-color` | border |
 | `--player-hover-background-color` | button hover background |
 | `--player-font-family` | font |

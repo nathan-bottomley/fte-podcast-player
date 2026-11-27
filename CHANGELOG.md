@@ -2,6 +2,21 @@
 
 Until version 1.0, any minor release may contain breaking changes.
 
+## 0.2.3 (2026-11-28)
+
+### Added
+
+- The `artist` and `artwork` attributes. The media session shows them, with the title, in the lock-screen and notification controls. The artist is usually the name of the podcast.
+- The `remember-speed` attribute. It saves the playback speed in `localStorage`, and applies it to every player on the site that has the attribute.
+- A `[data-player-error]` element that shows "Audio failed to load" when every source fails. It has `role="alert"`, so screen readers announce it, and it's empty and not displayed otherwise.
+- The `--player-track-border-color` custom property, a 1px outline around the seek and volume slider tracks (default transparent).
+
+### Changed
+
+- The media session title now falls back to the `aria-label` you set on the player when there's no `[data-player-title]` element.
+- The player now builds if a classic (non-module) script loads it, instead of silently doing nothing.
+- The README explains how to reserve space for the player so the page doesn't shift when the script runs.
+
 ## 0.2.2 (2026-11-26)
 
 ### Changed

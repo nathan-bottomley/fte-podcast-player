@@ -69,11 +69,27 @@ function parsePlaybackRates (value) {
   return playbackRates
 }
 
-function volumeIsSettable () {
-  const probe = new Audio()
-  probe.volume = 0.5
-  return probe.volume === 0.5
+const speedStorageKey = 'podcast-player-speed'
+
+// Storage can throw (private mode, blocked cookies), and remembering the speed is only a nicety
+const readSavedSpeed = () => {
+  try {
+    return localStorage.getItem(speedStorageKey)
+  } catch {
+    return null
+  }
 }
+
+const saveSpeed = rate => {
+  try {
+    localStorage.setItem(speedStorageKey, rate)
+  } catch {}
+}
+
+/* iOS ignores attempts to set the volume, and a volume slider would do nothing there */
+const volumeProbe = new Audio()
+volumeProbe.volume = 0.5
+const volumeIsSettable = volumeProbe.volume === 0.5
 
 /* Custom element */
 
@@ -87,11 +103,18 @@ class PodcastPlayer extends HTMLElement {
   #scrubbing = false // the user is dragging the seek slider
   #skipBack = 10 // "what did they just say?"
   #skipForward = 30 // "skip this ad"
+  #authorLabel // the aria-label the author supplied, if any
 
   /* Setting up */
 
   connectedCallback () {
     if (this.#built) return
+
+    // A classic script can run before this element's children have been parsed
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => this.connectedCallback(), { once: true })
+      return
+    }
 
     this.#audio = this.querySelector('audio')
     if (!this.#audio) return
@@ -100,10 +123,12 @@ class PodcastPlayer extends HTMLElement {
     this.#skipBack = parseSeconds(this.getAttribute('skip-back'), this.#skipBack)
     this.#skipForward = parseSeconds(this.getAttribute('skip-forward'), this.#skipForward)
 
+    this.#authorLabel = this.getAttribute('aria-label')
     this.setAttribute('role', 'group')
     this.#labelGroup()
     this.#renderControls()
     this.#setUpPlayback()
+    this.#setUpErrorMessage()
     this.#setUpPosition()
     this.#setUpVolume()
     this.#setUpSpeed()
@@ -135,13 +160,17 @@ class PodcastPlayer extends HTMLElement {
       <span data-player-time><span data-player-current>0:00</span><span data-player-duration></span></span>
       <input type="range" data-player-seek aria-label="Seek" min="0" step="1" value="0">
       <button type="button" data-player-mute aria-label="Mute" aria-pressed="false">${renderIcon('volume')}</button>
-      ${volumeIsSettable() ? '<input type="range" data-player-volume aria-label="Volume" min="0" max="1" step="0.05" value="1">' : ''}
+      ${volumeIsSettable ? '<input type="range" data-player-volume aria-label="Volume" min="0" max="1" step="0.05" value="1">' : ''}
       <button type="button" data-player-speed></button>
       <span data-player-status role="status"></span>`
-    this.append(controls)
+    const error = document.createElement('p')
+    error.dataset.playerError = ''
+    error.setAttribute('role', 'alert')
+    this.append(controls, error)
 
     const partNames = ['back', 'play', 'forward', 'time', 'current', 'duration', 'seek', 'mute', 'volume', 'speed', 'status']
     for (const name of partNames) this.#parts[name] = controls.querySelector(`[data-player-${name}]`)
+    this.#parts.error = error
   }
 
   #setUpPlayback () {
@@ -163,6 +192,25 @@ class PodcastPlayer extends HTMLElement {
     for (const type of ['playing', 'canplay', 'pause', 'emptied']) {
       audio.addEventListener(type, () => this.toggleAttribute('buffering', false))
     }
+  }
+
+  #setUpErrorMessage () {
+    const audio = this.#audio
+    const { error } = this.#parts
+
+    const showError = () => { error.textContent = 'Audio failed to load' }
+
+    // The audio may have failed before the player was built
+    if (audio.error || audio.networkState === audio.NETWORK_NO_SOURCE) showError()
+
+    // A failed <source> fires its error event on itself, and error events don't bubble,
+    // so listen during the capture phase. Only the last <source> failing means that none are left to try.
+    audio.addEventListener('error', event => {
+      const sources = audio.querySelectorAll('source')
+      if (event.target === audio || event.target === sources[sources.length - 1]) showError()
+    }, true)
+
+    audio.addEventListener('loadedmetadata', () => { error.textContent = '' })
   }
 
   #setUpPosition () {
@@ -231,6 +279,12 @@ class PodcastPlayer extends HTMLElement {
     const audio = this.#audio
     const { speed, status } = this.#parts
     const playbackRates = parsePlaybackRates(this.getAttribute('playback-rates'))
+    const remember = this.hasAttribute('remember-speed')
+
+    if (remember) {
+      const savedRate = Number(readSavedSpeed())
+      if (playbackRates.includes(savedRate)) audio.playbackRate = savedRate
+    }
 
     const showSpeed = () => {
       speed.textContent = `${audio.playbackRate}×`
@@ -242,6 +296,7 @@ class PodcastPlayer extends HTMLElement {
 
     speed.addEventListener('click', () => {
       audio.playbackRate = playbackRates.find(rate => rate > audio.playbackRate) ?? playbackRates[0]
+      if (remember) saveSpeed(audio.playbackRate)
       // A changed label on a focused button isn't reliably announced.
       status.textContent = `Speed ${audio.playbackRate}×`
     })
@@ -270,8 +325,11 @@ class PodcastPlayer extends HTMLElement {
 
     audio.addEventListener('play', () => {
       PodcastPlayer.#currentPlayer = this
+      const artwork = this.getAttribute('artwork')
       session.metadata = new MediaMetadata({
-        title: this.querySelector('[data-player-title]')?.textContent.trim() ?? ''
+        title: this.querySelector('[data-player-title]')?.textContent.trim() || this.#authorLabel || '',
+        artist: this.getAttribute('artist') ?? '',
+        artwork: artwork ? [{ src: artwork }] : []
       })
 
       const handlers = {
@@ -345,6 +403,7 @@ const componentStyles = /* css */ `
     --_text: var(--player-text-color, CanvasText);
     --_track: var(--player-track-color, color-mix(in srgb, CanvasText 25%, transparent));
     --_track-fill: var(--player-track-fill-color, var(--_accent));
+    --_track-border: var(--player-track-border-color, transparent);
     --_border: var(--player-border-color, color-mix(in srgb, CanvasText 30%, transparent));
     --_hover: var(--player-hover-background-color, color-mix(in srgb, CanvasText 10%, transparent));
     --_icon: var(--player-icon-size, 1.25rem);
@@ -457,12 +516,14 @@ const componentStyles = /* css */ `
   podcast-player input[type="range"]::-webkit-slider-runnable-track {
     block-size: var(--_track-height);
     border-radius: var(--_track-height);
+    outline: 1px solid var(--_track-border); /* not a border, which would nudge the thumb off-centre */
     background: linear-gradient(to right, var(--_track-fill) var(--_filled, 0%), var(--_track) var(--_filled, 0%));
   }
 
   podcast-player input[type="range"]::-moz-range-track {
     block-size: var(--_track-height);
     border-radius: var(--_track-height);
+    outline: 1px solid var(--_track-border); /* not a border, which would nudge the thumb off-centre */
     background: linear-gradient(to right, var(--_track-fill) var(--_filled, 0%), var(--_track) var(--_filled, 0%));
   }
 
@@ -504,6 +565,17 @@ const componentStyles = /* css */ `
     podcast-player input[type="range"]::-moz-range-thumb {
       background: CanvasText;
     }
+  }
+
+  /* Shown only when the audio has failed to load */
+  podcast-player [data-player-error] {
+    margin: 0;
+    padding: 0 var(--_padding-inline) var(--_padding-block);
+    font-size: var(--_controls-font-size);
+  }
+
+  podcast-player [data-player-error]:empty {
+    display: none;
   }
 
   /* Screen-reader announcements only */
