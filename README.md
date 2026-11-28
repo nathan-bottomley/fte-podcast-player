@@ -21,7 +21,7 @@ Then serve `node_modules/fte-podcast-player/podcast-player.js` to the browser an
 ## Markup
 
 ```html
-<podcast-player duration="4062.1">
+<podcast-player duration="4062.1" artist="Podcast name" artwork="/img/podcast-logo.jpg" remember-speed>
   <p data-player-title>Episode title</p>
   <audio controls preload="none"><source src="…" type="audio/mpeg"></audio>
 </podcast-player>
@@ -41,7 +41,7 @@ The `<podcast-player>` element supports the following attributes:
 | `playback-rates` | A space-separated list of playback rates cycled through by pressing the speed button (default `0.7 1 1.2 1.5 1.7 2`) |
 | `skip-back` | Seconds skipped by the back button (default 10) |
 | `skip-forward` | Seconds skipped by the forward button (default 30) |
-| `remember-speed` | Boolean. Saves the playback speed in the browser's `localStorage` when the listener changes it, and applies it to every player on the site that has this attribute. Nothing is stored without it |
+| `remember-speed` | Boolean. Saves the playback speed in the browser's `localStorage` when the person listening changes it, and applies it to every player on the site that has this attribute. A saved speed that isn't one of the player's `playback-rates` is ignored. Nothing is stored without it |
 | `artist` | Name shown under the title by the media session, usually the name of the podcast |
 | `artwork` | URL of the image shown by the media session. A relative URL is resolved against the page's address |
 
@@ -69,7 +69,7 @@ The player is designed to be accessible. It uses native `<button>` and `<input t
 
 ## Media Session
 
-The player uses [the page's media session][] to drive the lock-screen and notification controls. While audio plays, the lock-screen and notification controls show the title, artist and artwork of the most recently started player, and play, pause, seek back, seek forward and seek-to all work.
+The player uses [the page's media session][] to drive the lock-screen and notification controls. While audio plays, they show the title, artist and artwork of the most recently started player, and play, pause, seek back, seek forward and seek-to all work.
 
 The title is the content of the `[data-player-title]` element or, if there isn't one, the `aria-label` that you set on the player.
 
@@ -101,9 +101,33 @@ Each part of the player has its own `data-player-…` attribute to select it:
 
 The player also sets two attributes on `<podcast-player>`: `playing` while audio plays and `buffering` while it waits for data, for example `article:has(podcast-player[playing])`. These report state. Setting them yourself does nothing.
 
-The player injects a small stylesheet in its own cascade layer, so a site's unlayered CSS overrides it.
+The player injects a small stylesheet, once, as the last element in `<head>`, in its own cascade layer. The layer is therefore declared after the site's own layers, so it beats a site's resets (for `button` and `svg`, say) but still loses to any of the site's unlayered CSS.
 
-The stylesheet is added once, as the last element in `<head>`. Its layer is therefore declared after the site's own layers, so it beats a site's resets (for `button` and `svg`, say) but still loses to any of the site's unlayered CSS.
+These custom properties can be set on `podcast-player` or any ancestor:
+
+| Property | Controls |
+| --- | --- |
+| `--player-accent-color` | focus ring, seek thumb, and the filled part of the seek slider unless `--player-track-fill-color` is set |
+| `--player-background-color` | background |
+| `--player-text-color` | text and icons |
+| `--player-track-color` | seek and volume slider grooves, the unfilled part |
+| `--player-track-fill-color` | filled part of the seek and volume sliders (defaults to the accent) |
+| `--player-track-border-color` | a 1px outline around the seek and volume slider tracks (default transparent) |
+| `--player-border-color` | border |
+| `--player-hover-background-color` | button hover background |
+| `--player-font-family` | font |
+| `--player-icon-size` | icon size |
+| `--player-touch-size` | minimum button size (default 44px) |
+| `--player-track-height` | seek and volume track thickness |
+| `--player-thumb-size` | seek thumb diameter |
+| `--player-radius` | corner radius |
+| `--player-padding-inline` | side padding inside the player: around the title and the time, and beside the seek and volume sliders, so their left edges line up (default 0.5rem) |
+| `--player-padding-block` | top and bottom padding of the title (default 0.25rem) |
+| `--player-title-font-size` | size of the `[data-player-title]` text (default 0.875rem) |
+| `--player-controls-font-size` | size of the time and speed text in the controls row (default 0.875rem) |
+| `--player-skip-number-scale` | multiplier for the numbers on the skip icons (default 1). Use it if your font's digits run large or small. Stay between about 0.8 and 1.2: any larger and the digits start to meet the arrow's tail |
+
+## Avoiding a layout shift
 
 Until the script has run, the browser shows its own audio player, and the page below it can shift when the custom player replaces it. If you see that, reserve the space with a rule in your own CSS:
 
@@ -115,30 +139,6 @@ podcast-player:not(:defined) {
 ```
 
 Don't hide the audio element this way. If the script fails to load, it is the player people are left with.
-
-These custom properties can be set on `podcast-player` or any ancestor:
-
-| Property | Controls |
-| --- | --- |
-| `--player-accent-color` | focus ring, seek thumb, and the filled part of the seek slider unless `--player-track-fill-color` is set |
-| `--player-background-color` | background |
-| `--player-text-color` | text and icons |
-| `--player-track-color` | seek slider groove, the unfilled part |
-| `--player-track-fill-color` | filled part of the seek and volume sliders (defaults to the accent) |
-| `--player-track-border-color` | a 1px outline around the seek and volume slider tracks (default transparent) |
-| `--player-border-color` | border |
-| `--player-hover-background-color` | button hover background |
-| `--player-font-family` | font |
-| `--player-icon-size` | icon size |
-| `--player-touch-size` | minimum button size (default 44px) |
-| `--player-track-height` | seek track thickness |
-| `--player-thumb-size` | seek thumb diameter |
-| `--player-radius` | corner radius |
-| `--player-padding-inline` | side padding inside the player: around the title and the time, and beside the seek and volume sliders, so their left edges line up (default 0.5rem) |
-| `--player-padding-block` | top and bottom padding of the title (default 0.25rem) |
-| `--player-title-font-size` | size of the `[data-player-title]` text (default 0.875rem) |
-| `--player-controls-font-size` | size of the time and speed text in the controls row (default 0.875rem) |
-| `--player-skip-number-scale` | multiplier for the numbers on the skip icons (default 1). Use it if your font's digits run large or small. Stay between about 0.8 and 1.2: any larger and the digits start to meet the arrow's tail |
 
 ## Licence
 
