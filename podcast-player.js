@@ -1,4 +1,4 @@
-/* global HTMLElement, customElements, Audio, MediaMetadata, navigator, document */
+/* global HTMLElement, customElements, Audio, MediaMetadata */
 
 /*!
  * The play, pause, volume and muted icon paths used here are from
@@ -71,7 +71,7 @@ function parsePlaybackRates (value) {
 
 const speedStorageKey = 'podcast-player-speed'
 
-const readSavedSpeed = () => {
+function readSavedSpeed () {
   try {
     return localStorage.getItem(speedStorageKey)
   } catch {
@@ -79,7 +79,7 @@ const readSavedSpeed = () => {
   }
 }
 
-const saveSpeed = rate => {
+function saveSpeed (rate) {
   try {
     localStorage.setItem(speedStorageKey, rate)
   } catch {}
@@ -102,7 +102,7 @@ class PodcastPlayer extends HTMLElement {
   #skipBack = 10 // "what did they just say?"
   #skipForward = 30 // "skip this ad"
   #authorLabel // the aria-label the author supplied, if any
-  #playbackRates // cycled through by the speed button
+  #playbackRates
   #remembersSpeed = false
 
   /* Setting up */
@@ -310,7 +310,7 @@ class PodcastPlayer extends HTMLElement {
     if (volume) {
       const level = audio.muted ? 0 : audio.volume
       volume.value = level
-      volume.setAttribute('aria-valuetext', `${Math.round(level * 100)}%`) // the raw value is 0 to 1
+      volume.setAttribute('aria-valuetext', `${Math.round(level * 100)}%`)
       volume.style.setProperty('--_filled', `${level * 100}%`)
     }
   }
@@ -327,14 +327,18 @@ class PodcastPlayer extends HTMLElement {
 
   #play () {
     return this.#audio.play().catch(error => {
-      // Expected: paused again before playback began, blocked by autoplay rules, or no usable source (the error message covers that)
+      // Paused before playback began, blocked by autoplay rules, or no usable source (the error message covers that)
       const expected = ['AbortError', 'NotAllowedError', 'NotSupportedError']
       if (!expected.includes(error.name)) throw error
     })
   }
 
   #togglePlay () {
-    return this.#audio.paused ? this.#play() : this.#audio.pause()
+    if (this.#audio.paused) {
+      this.#play()
+    } else {
+      this.#audio.pause()
+    }
   }
 
   #toggleMute () {
@@ -545,18 +549,19 @@ const componentStyles = /* css */ `
 
   /* --_filled (how far the fill reaches) is set by the script on each slider.
      The WebKit and Firefox rules can't share one selector list: a list that
-     contains an unknown vendor pseudo-element is dropped whole. */
+     contains an unknown vendor pseudo-element is dropped whole.
+     The tracks use an outline, not a border, which would nudge the thumb off-centre. */
   podcast-player input[type="range"]::-webkit-slider-runnable-track {
     block-size: var(--_track-height);
     border-radius: var(--_track-height);
-    outline: 1px solid var(--_track-border); /* not a border, which would nudge the thumb off-centre */
+    outline: 1px solid var(--_track-border);
     background: linear-gradient(to right, var(--_track-fill) var(--_filled, 0%), var(--_track) var(--_filled, 0%));
   }
 
   podcast-player input[type="range"]::-moz-range-track {
     block-size: var(--_track-height);
     border-radius: var(--_track-height);
-    outline: 1px solid var(--_track-border); /* not a border, which would nudge the thumb off-centre */
+    outline: 1px solid var(--_track-border);
     background: linear-gradient(to right, var(--_track-fill) var(--_filled, 0%), var(--_track) var(--_filled, 0%));
   }
 
@@ -582,12 +587,12 @@ const componentStyles = /* css */ `
      Redraw the groove, fill and thumb from system colours so they stay visible. */
   @media (forced-colors: active) {
     podcast-player input[type="range"]::-webkit-slider-runnable-track {
-      outline: 1px solid CanvasText; /* not a border, which would nudge the thumb off-centre */
+      outline: 1px solid CanvasText;
       background: linear-gradient(to right, Highlight var(--_filled, 0%), Canvas var(--_filled, 0%));
     }
 
     podcast-player input[type="range"]::-moz-range-track {
-      outline: 1px solid CanvasText; /* not a border, which would nudge the thumb off-centre */
+      outline: 1px solid CanvasText;
       background: linear-gradient(to right, Highlight var(--_filled, 0%), Canvas var(--_filled, 0%));
     }
 
