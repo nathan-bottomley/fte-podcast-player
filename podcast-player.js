@@ -192,8 +192,11 @@ class PodcastPlayer extends HTMLElement {
   #setUpErrorMessage () {
     const audio = this.#audio
 
-    // The audio may have failed before the player was built
-    if (audio.error || audio.networkState === audio.NETWORK_NO_SOURCE) this.#showError()
+    // The audio may have failed before the player was built. Wait a task before looking:
+    // a player inserted dynamically briefly reports NETWORK_NO_SOURCE while it chooses a source.
+    setTimeout(() => {
+      if (audio.error || audio.networkState === audio.NETWORK_NO_SOURCE) this.#showError()
+    })
 
     // A failed <source> fires its error event on itself, and error events don't bubble,
     // so listen during the capture phase. Only the last <source> failing means that none are left to try.
@@ -324,7 +327,9 @@ class PodcastPlayer extends HTMLElement {
 
   #play () {
     return this.#audio.play().catch(error => {
-      if (error.name !== 'AbortError') throw error // paused again before playback began
+      // Expected: paused again before playback began, blocked by autoplay rules, or no usable source (the error message covers that)
+      const expected = ['AbortError', 'NotAllowedError', 'NotSupportedError']
+      if (!expected.includes(error.name)) throw error
     })
   }
 
@@ -336,7 +341,6 @@ class PodcastPlayer extends HTMLElement {
     const audio = this.#audio
 
     if (audio.volume === 0) {
-      // Silent because the slider is at zero, not because of mute: turn it back up.
       audio.volume = 1
       audio.muted = false
     } else {

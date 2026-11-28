@@ -2,6 +2,13 @@
 
 Until version 1.0, any minor release may contain breaking changes.
 
+## 0.2.4 (2026-11-28)
+
+### Fixed
+
+- A player inserted into the page after it had loaded (with `innerHTML`, say) could show "Audio failed to load" while the browser was still choosing a source, and with `preload="none"` the message never cleared. The player now waits a moment before checking.
+- Pressing play on audio that has failed to load, or that the browser's autoplay rules block, no longer leaves an unhandled promise rejection in the console.
+
 ## 0.2.3 (2026-11-28)
 
 ### Added
